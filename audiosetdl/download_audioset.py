@@ -28,6 +28,7 @@ from validation import validate_audio, validate_video
 LOGGER = logging.getLogger('audiosetdl')
 LOGGER.setLevel(logging.DEBUG)
 
+VGG_URL = "/home/v-yuancwang/DiffAudioImg/VGGSound/data/vggsound.csv"
 EVAL_URL = 'http://storage.googleapis.com/us_audioset/youtube_corpus/v1/csv/eval_segments.csv'
 BALANCED_TRAIN_URL = 'http://storage.googleapis.com/us_audioset/youtube_corpus/v1/csv/balanced_train_segments.csv'
 UNBALANCED_TRAIN_URL = 'http://storage.googleapis.com/us_audioset/youtube_corpus/v1/csv/unbalanced_train_segments.csv'
@@ -49,7 +50,7 @@ def parse_arguments():
                         dest='ffmpeg_path',
                         action='store',
                         type=str,
-                        default='./bin/ffmpeg/ffmpeg',
+                        default='/usr/bin/ffmpeg',
                         help='Path to ffmpeg executable')
 
     parser.add_argument('-fp',
@@ -57,7 +58,7 @@ def parse_arguments():
                         dest='ffprobe_path',
                         action='store',
                         type=str,
-                        default='./bin/ffmpeg/ffprobe',
+                        default='/usr/bin/ffprobe',
                         help='Path to ffprobe executable')
 
     parser.add_argument('-e',
@@ -65,7 +66,7 @@ def parse_arguments():
                         dest='eval_segments_path',
                         action='store',
                         type=str,
-                        default=EVAL_URL,
+                        default=VGG_URL,
                         help='Path to evaluation segments file')
 
     parser.add_argument('-b',
@@ -97,7 +98,7 @@ def parse_arguments():
                         dest='audio_sample_rate',
                         action='store',
                         type=int,
-                        default=48000,
+                        default=16000,
                         help='Target audio sample rate (in Hz)')
 
     parser.add_argument('-abd',
@@ -151,7 +152,7 @@ def parse_arguments():
                         dest='video_frame_rate',
                         action='store',
                         type=int,
-                        default=30,
+                        default=1,
                         help='Target video frame rate (in fps)')
 
     parser.add_argument('-nr',
@@ -167,7 +168,7 @@ def parse_arguments():
                         dest='num_workers',
                         action='store',
                         type=int,
-                        default=4,
+                        default=32,
                         help='Number of multiprocessing workers used to download videos')
 
     parser.add_argument('-nl',
@@ -249,7 +250,7 @@ def ffmpeg(ffmpeg_path, input_path, output_path, input_args=None,
     last_err = None
     for attempt in range(num_retries):
         try:
-            args = [ffmpeg_path] + input_args + inputs + output_args + [output_path, '-loglevel', log_level]
+            args = [ffmpeg_path] + input_args + inputs + output_args + ['-strict', '-2', output_path, '-loglevel', log_level]
             run_command(args)
 
             # Validate if a callback was passed in
@@ -388,6 +389,8 @@ def download_yt_video(ytid, ts_start, ts_end, output_dir, ffmpeg_path, ffprobe_p
     video_filepath = os.path.join(output_dir, 'video', media_filename + '.' + video_format)
     audio_filepath = os.path.join(output_dir, 'audio', media_filename + '.' + audio_format)
     video_page_url = 'https://www.youtube.com/watch?v={}'.format(ytid)
+    # https://www.youtube.com/watch?v=X7qFgrAl3OU
+    # print(video_page_url)
 
     # Get the direct URLs to the videos with best audio and with best video (with audio)
 
@@ -486,8 +489,7 @@ def download_yt_video(ytid, ts_start, ts_end, output_dir, ffmpeg_path, ffprobe_p
                              '-vcodec', video_codec,
                              '-acodec', 'aac',
                              '-ar', str(audio_sample_rate),
-                             '-ac', str(audio_info['channels']),
-                             '-strict', 'experimental']
+                             '-ac', str(audio_info['channels'])]  # '-strict', 'experimental'
 
         ffmpeg(ffmpeg_path, [video_filepath, audio_filepath], merge_video_filepath,
                input_args=video_input_args, output_args=video_output_args,
@@ -649,10 +651,12 @@ def download_subset_videos(subset_path, data_dir, ffmpeg_path, ffprobe_path,
         pool = mp.Pool(num_workers)
         try:
             for row_idx, row in enumerate(subset_data):
+                # if row_idx > 10:
+                #     break
                 # Skip commented lines
                 if row[0][0] == '#':
                     continue
-                ytid, ts_start, ts_end = row[0], float(row[1]), float(row[2])
+                ytid, ts_start, ts_end = row[0], float(row[1]), float(row[1])+10.0
 
                 # Skip files that already have been downloaded
                 media_filename = get_media_filename(ytid, ts_start, ts_end)
@@ -759,7 +763,7 @@ def download_random_subset_files(subset_url, dataset_dir, ffmpeg_path, ffprobe_p
     pool = mp.Pool(num_workers)
     try:
         for idx, row in enumerate(subset_data):
-            worker_args = [row[0], float(row[1]), float(row[2]), data_dir, ffmpeg_path, ffprobe_path]
+            worker_args = [row[0], float(row[1]), float(row[1])+10.0, data_dir, ffmpeg_path, ffprobe_path]
             pool.apply_async(partial(segment_mp_worker, **ffmpeg_cfg), worker_args)
             # Run serially
             #segment_mp_worker(*worker_args, **ffmpeg_cfg)
@@ -878,10 +882,10 @@ def download_audioset(data_dir, ffmpeg_path, ffprobe_path, eval_segments_path,
 
     download_subset(eval_segments_path, data_dir, ffmpeg_path, ffprobe_path,
                     num_workers, **ffmpeg_cfg)
-    download_subset(balanced_train_segments_path, data_dir, ffmpeg_path, ffprobe_path,
-                    num_workers, **ffmpeg_cfg)
-    download_subset(unbalanced_train_segments_path, data_dir, ffmpeg_path, ffprobe_path,
-                    num_workers, **ffmpeg_cfg)
+    # download_subset(balanced_train_segments_path, data_dir, ffmpeg_path, ffprobe_path,
+    #                 num_workers, **ffmpeg_cfg)
+    # download_subset(unbalanced_train_segments_path, data_dir, ffmpeg_path, ffprobe_path,
+    #                 num_workers, **ffmpeg_cfg)
 
 
 if __name__ == '__main__':

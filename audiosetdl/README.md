@@ -106,3 +106,7 @@ Easiest way to do this is install sox via brew.
  utils.run_comand() needs to open POPEN with universal_newlines=True to enable string format otherwise json module will fail.
 
 Youtube is mostly AAC format so it's not necessary to store in any higher quality format, but sox doesn't support AAC. Easiest compressed format to use with sox is flac. Maybe ogg or mp3 will work also.
+
+
+
+python download_audioset.py /blob/v-yuancwang/DiffAudioImg/VGGSound

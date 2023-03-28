@@ -1,1 +1,3 @@
-import numpy as np
+import pafy
+
+v = pafy.new(url="X7qFgrAl3OU")
