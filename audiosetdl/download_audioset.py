@@ -152,7 +152,7 @@ def parse_arguments():
                         dest='video_frame_rate',
                         action='store',
                         type=int,
-                        default=1,
+                        default=5,
                         help='Target video frame rate (in fps)')
 
     parser.add_argument('-nr',
@@ -651,8 +651,6 @@ def download_subset_videos(subset_path, data_dir, ffmpeg_path, ffprobe_path,
         pool = mp.Pool(num_workers)
         try:
             for row_idx, row in enumerate(subset_data):
-                # if row_idx > 10:
-                #     break
                 # Skip commented lines
                 if row[0][0] == '#':
                     continue
