@@ -65,25 +65,6 @@ def mel_spectrogram(y, n_fft, num_mels, sampling_rate, hop_size, win_size, fmin,
 
     return spec
 
-vgg_audio_path = "/blob/v-yuancwang/DiffAudioImg/VGGSound/data/vggsound/audio"
-vgg_video_path = "/blob/v-yuancwang/DiffAudioImg/VGGSound/data/vggsound/video"
-
-vgg_audio_lists = os.listdir(vgg_audio_path)
-vgg_video_lists = os.listdir(vgg_video_path)
-
-print(len(vgg_audio_lists))
-vgg_audio_lists.sort()
-print(vgg_audio_lists[:5])
-print(len(vgg_video_lists))
-vgg_video_lists.sort()
-print(vgg_video_lists[:5])
-
-vgg_wav_path = "/blob/v-yuancwang/DiffAudioImg/VGGSound/data/vggsound/wav"
-vgg_mel_path = "/blob/v-yuancwang/DiffAudioImg/VGGSound/data/vggsound/mel"
-
-def flac_to_wav(file_name, save_file_name):
-    os.system("/usr/bin/ffmpeg -y -i" + " " + file_name + " " + save_file_name)
-
 class HiddenPrints:
     def __enter__(self):
         self._original_stdout = sys.stdout
@@ -93,10 +74,32 @@ class HiddenPrints:
         sys.stdout.close()
         sys.stdout = self._original_stdout
 
+SUBSET = "ac_train"
+
+vgg_audio_path = "/blob/v-yuancwang/DiffAudioImg/VGGSound/data/{}/audio".format(SUBSET)
+# vgg_video_path = "/blob/v-yuancwang/DiffAudioImg/VGGSound/data/vggsound/video"
+
+vgg_audio_lists = os.listdir(vgg_audio_path)
+# vgg_video_lists = os.listdir(vgg_video_path)
+
+print(len(vgg_audio_lists))
+vgg_audio_lists.sort()
+print(vgg_audio_lists[:5])
+# print(len(vgg_video_lists))
+# vgg_video_lists.sort()
+# print(vgg_video_lists[:5])
+
+vgg_wav_path = "/blob/v-yuancwang/DiffAudioImg/VGGSound/data/{}/wav".format(SUBSET)
+vgg_mel_path = "/blob/v-yuancwang/DiffAudioImg/VGGSound/data/{}/mel".format(SUBSET)
+
+def flac_to_wav(file_name, save_file_name):
+    os.system("/usr/bin/ffmpeg -y -i" + " " + file_name + " " + save_file_name)
+
 vgg_wav_set = set(os.listdir(vgg_wav_path))
+
 for f in tqdm(vgg_audio_lists[:]):
     file_name = os.path.join(vgg_audio_path, f)
-    save_file_name = f[:]+".wav"
+    save_file_name = f[:].replace(".flac", "")+".wav"
     if save_file_name in vgg_wav_set:
         continue
     save_file_name = os.path.join(vgg_wav_path, save_file_name)
