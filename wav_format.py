@@ -93,9 +93,12 @@ class HiddenPrints:
         sys.stdout.close()
         sys.stdout = self._original_stdout
 
+vgg_wav_set = set(os.listdir(vgg_wav_path))
 for f in tqdm(vgg_audio_lists[:]):
     file_name = os.path.join(vgg_audio_path, f)
-    save_file_name = f[:11]+".wav"
+    save_file_name = f[:]+".wav"
+    if save_file_name in vgg_wav_set:
+        continue
     save_file_name = os.path.join(vgg_wav_path, save_file_name)
     with HiddenPrints():
         flac_to_wav(file_name, save_file_name)
