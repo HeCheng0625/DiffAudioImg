@@ -74,7 +74,7 @@ class HiddenPrints:
         sys.stdout.close()
         sys.stdout = self._original_stdout
 
-SUBSET = "ac_train"
+SUBSET = "vggsound"
 
 vgg_audio_path = "/blob/v-yuancwang/DiffAudioImg/VGGSound/data/{}/audio".format(SUBSET)
 # vgg_video_path = "/blob/v-yuancwang/DiffAudioImg/VGGSound/data/vggsound/video"

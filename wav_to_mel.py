@@ -65,17 +65,22 @@ def mel_spectrogram(y, n_fft, num_mels, sampling_rate, hop_size, win_size, fmin,
 
     return spec
 
-SUBSET = "ac_train"
+SUBSET = "vggsound"
 wav_path = "/blob/v-yuancwang/DiffAudioImg/VGGSound/data/{}/wav".format(SUBSET)
 mel_path = "/blob/v-yuancwang/DiffAudioImg/VGGSound/data/{}/mel".format(SUBSET)
 wav_list = os.listdir(wav_path)
+mel_set = set(os.listdir(mel_path))
 
 wav_list.sort()
 for wav_file in tqdm(wav_list):
+    if wav_file.replace(".wav", ".npy") in mel_set:
+        continue
     wav_file_path = os.path.join(wav_path, wav_file)    
     wav, sr = librosa.load(wav_file_path, sr=16000)
     # print(len(wav), sr)
     # print(wav.shape)
+    if len(wav) < 16000:
+        continue
     wav = torch.FloatTensor(wav)
     # print(wav.unsqueeze(0).shape)
     x = mel_spectrogram(wav.unsqueeze(0), n_fft=1024, num_mels=80, sampling_rate=16000,
