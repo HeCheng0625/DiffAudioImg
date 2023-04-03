@@ -61,101 +61,101 @@ check_min_version("0.15.0.dev0")
 logger = get_logger(__name__)
 
 
-def log_validation(vae, text_encoder, tokenizer, unet, controlnet, args, accelerator, weight_dtype, step):
-    logger.info("Running validation... ")
+# def log_validation(vae, text_encoder, tokenizer, unet, controlnet, args, accelerator, weight_dtype, step):
+#     logger.info("Running validation... ")
 
-    controlnet = accelerator.unwrap_model(controlnet)
+#     controlnet = accelerator.unwrap_model(controlnet)
 
-    pipeline = StableDiffusionControlNetPipeline.from_pretrained(
-        args.pretrained_model_name_or_path,
-        vae=vae,
-        text_encoder=text_encoder,
-        tokenizer=tokenizer,
-        unet=unet,
-        controlnet=controlnet,
-        safety_checker=None,
-        revision=args.revision,
-        torch_dtype=weight_dtype,
-    )
-    pipeline.scheduler = UniPCMultistepScheduler.from_config(pipeline.scheduler.config)
-    pipeline = pipeline.to(accelerator.device)
-    pipeline.set_progress_bar_config(disable=True)
+#     pipeline = StableDiffusionControlNetPipeline.from_pretrained(
+#         args.pretrained_model_name_or_path,
+#         vae=vae,
+#         text_encoder=text_encoder,
+#         tokenizer=tokenizer,
+#         unet=unet,
+#         controlnet=controlnet,
+#         safety_checker=None,
+#         revision=args.revision,
+#         torch_dtype=weight_dtype,
+#     )
+#     pipeline.scheduler = UniPCMultistepScheduler.from_config(pipeline.scheduler.config)
+#     pipeline = pipeline.to(accelerator.device)
+#     pipeline.set_progress_bar_config(disable=True)
 
-    if args.enable_xformers_memory_efficient_attention:
-        pipeline.enable_xformers_memory_efficient_attention()
+#     if args.enable_xformers_memory_efficient_attention:
+#         pipeline.enable_xformers_memory_efficient_attention()
 
-    if args.seed is None:
-        generator = None
-    else:
-        generator = torch.Generator(device=accelerator.device).manual_seed(args.seed)
+#     if args.seed is None:
+#         generator = None
+#     else:
+#         generator = torch.Generator(device=accelerator.device).manual_seed(args.seed)
 
-    if len(args.validation_image) == len(args.validation_prompt):
-        validation_images = args.validation_image
-        validation_prompts = args.validation_prompt
-    elif len(args.validation_image) == 1:
-        validation_images = args.validation_image * len(args.validation_prompt)
-        validation_prompts = args.validation_prompt
-    elif len(args.validation_prompt) == 1:
-        validation_images = args.validation_image
-        validation_prompts = args.validation_prompt * len(args.validation_image)
-    else:
-        raise ValueError(
-            "number of `args.validation_image` and `args.validation_prompt` should be checked in `parse_args`"
-        )
+#     if len(args.validation_image) == len(args.validation_prompt):
+#         validation_images = args.validation_image
+#         validation_prompts = args.validation_prompt
+#     elif len(args.validation_image) == 1:
+#         validation_images = args.validation_image * len(args.validation_prompt)
+#         validation_prompts = args.validation_prompt
+#     elif len(args.validation_prompt) == 1:
+#         validation_images = args.validation_image
+#         validation_prompts = args.validation_prompt * len(args.validation_image)
+#     else:
+#         raise ValueError(
+#             "number of `args.validation_image` and `args.validation_prompt` should be checked in `parse_args`"
+#         )
 
-    image_logs = []
+#     image_logs = []
 
-    for validation_prompt, validation_image in zip(validation_prompts, validation_images):
-        validation_image = Image.open(validation_image)
+#     for validation_prompt, validation_image in zip(validation_prompts, validation_images):
+#         validation_image = Image.open(validation_image)
 
-        images = []
+#         images = []
 
-        for _ in range(args.num_validation_images):
-            with torch.autocast("cuda"):
-                image = pipeline(
-                    validation_prompt, validation_image, num_inference_steps=20, generator=generator
-                ).images[0]
+#         for _ in range(args.num_validation_images):
+#             with torch.autocast("cuda"):
+#                 image = pipeline(
+#                     validation_prompt, validation_image, num_inference_steps=20, generator=generator
+#                 ).images[0]
 
-            images.append(image)
+#             images.append(image)
 
-        image_logs.append(
-            {"validation_image": validation_image, "images": images, "validation_prompt": validation_prompt}
-        )
+#         image_logs.append(
+#             {"validation_image": validation_image, "images": images, "validation_prompt": validation_prompt}
+#         )
 
-    for tracker in accelerator.trackers:
-        if tracker.name == "tensorboard":
-            for log in image_logs:
-                images = log["images"]
-                validation_prompt = log["validation_prompt"]
-                validation_image = log["validation_image"]
+#     for tracker in accelerator.trackers:
+#         if tracker.name == "tensorboard":
+#             for log in image_logs:
+#                 images = log["images"]
+#                 validation_prompt = log["validation_prompt"]
+#                 validation_image = log["validation_image"]
 
-                formatted_images = []
+#                 formatted_images = []
 
-                formatted_images.append(np.asarray(validation_image))
+#                 formatted_images.append(np.asarray(validation_image))
 
-                for image in images:
-                    formatted_images.append(np.asarray(image))
+#                 for image in images:
+#                     formatted_images.append(np.asarray(image))
 
-                formatted_images = np.stack(formatted_images)
+#                 formatted_images = np.stack(formatted_images)
 
-                tracker.writer.add_images(validation_prompt, formatted_images, step, dataformats="NHWC")
-        elif tracker.name == "wandb":
-            formatted_images = []
+#                 tracker.writer.add_images(validation_prompt, formatted_images, step, dataformats="NHWC")
+#         elif tracker.name == "wandb":
+#             formatted_images = []
 
-            for log in image_logs:
-                images = log["images"]
-                validation_prompt = log["validation_prompt"]
-                validation_image = log["validation_image"]
+#             for log in image_logs:
+#                 images = log["images"]
+#                 validation_prompt = log["validation_prompt"]
+#                 validation_image = log["validation_image"]
 
-                formatted_images.append(wandb.Image(validation_image, caption="Controlnet conditioning"))
+#                 formatted_images.append(wandb.Image(validation_image, caption="Controlnet conditioning"))
 
-                for image in images:
-                    image = wandb.Image(image, caption=validation_prompt)
-                    formatted_images.append(image)
+#                 for image in images:
+#                     image = wandb.Image(image, caption=validation_prompt)
+#                     formatted_images.append(image)
 
-            tracker.log({"validation": formatted_images})
-        else:
-            logger.warn(f"image logging not implemented for {tracker.name}")
+#             tracker.log({"validation": formatted_images})
+#         else:
+#             logger.warn(f"image logging not implemented for {tracker.name}")
 
 
 def import_model_class_from_model_name_or_path(pretrained_model_name_or_path: str, revision: str):
@@ -499,11 +499,11 @@ def parse_args(input_args=None):
     else:
         args = parser.parse_args()
 
-    if args.dataset_name is None and args.train_data_dir is None:
-        raise ValueError("Specify either `--dataset_name` or `--train_data_dir`")
+    # if args.dataset_name is None and args.train_data_dir is None:
+    #     raise ValueError("Specify either `--dataset_name` or `--train_data_dir`")
 
-    if args.dataset_name is not None and args.train_data_dir is not None:
-        raise ValueError("Specify only one of `--dataset_name` or `--train_data_dir`")
+    # if args.dataset_name is not None and args.train_data_dir is not None:
+    #     raise ValueError("Specify only one of `--dataset_name` or `--train_data_dir`")
 
     if args.proportion_empty_prompts < 0 or args.proportion_empty_prompts > 1:
         raise ValueError("`--proportion_empty_prompts` must be in the range [0, 1].")
@@ -529,37 +529,48 @@ def parse_args(input_args=None):
     return args
 
 def make_train_dataset(args, tokenizer, accelerator):
-    # Get the datasets: you can either provide your own training and evaluation files (see below)
-    # or specify a Dataset from the hub (the dataset will be downloaded automatically from the datasets Hub).
+    # # Get the datasets: you can either provide your own training and evaluation files (see below)
+    # # or specify a Dataset from the hub (the dataset will be downloaded automatically from the datasets Hub).
 
-    # In distributed training, the load_dataset function guarantees that only one local process can concurrently
-    # download the dataset.
-    if args.dataset_name is not None:
-        # Downloading and loading a dataset from the hub.
-        dataset = load_dataset(
-            args.dataset_name,
-            args.dataset_config_name,
-            cache_dir=args.cache_dir,
-        )
-    else:
-        data_files = {}
-        if args.train_data_dir is not None:
-            data_files["train"] = os.path.join(args.train_data_dir, "**")
-        dataset = load_dataset(
-            "imagefolder",
-            data_files=data_files,
-            cache_dir=args.cache_dir,
-        )
-        # See more about loading custom images at
-        # https://huggingface.co/docs/datasets/v2.4.0/en/image_load#imagefolder
+    # # In distributed training, the load_dataset function guarantees that only one local process can concurrently
+    # # download the dataset.
+    # if args.dataset_name is not None:
+    #     # Downloading and loading a dataset from the hub.
+    #     dataset = load_dataset(
+    #         args.dataset_name,
+    #         args.dataset_config_name,
+    #         cache_dir=args.cache_dir,
+    #     )
+    # else:
+    #     data_files = {}
+    #     if args.train_data_dir is not None:
+    #         data_files["train"] = os.path.join(args.train_data_dir, "**")
+    #     dataset = load_dataset(
+    #         "imagefolder",
+    #         data_files=data_files,
+    #         cache_dir=args.cache_dir,
+    #     )
+    #     # See more about loading custom images at
+    #     # https://huggingface.co/docs/datasets/v2.4.0/en/image_load#imagefolder
+
+
+    vgg_img_path = "/blob/v-yuancwang/DiffAudioImg/VGGSound/data/vggsound/img_spilt"
+    vgg_mel_path = "/blob/v-yuancwang/DiffAudioImg/VGGSound/data/vggsound/mel"
+
+    dataset = load_dataset('json', data_files=["/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_0.json",
+                                            "/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_1.json",
+                                            "/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_2.json",
+                                            "/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_3.json",
+                                            "/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_4.json"])
+    dataset = dataset["train"]
 
     # Preprocessing the datasets.
     # We need to tokenize inputs and targets.
-    column_names = dataset["train"].column_names
+    column_names = dataset.column_names
 
     # 6. Get the column names for input/target.
     if args.image_column is None:
-        image_column = column_names[0]
+        image_column = column_names[0]   # image
         logger.info(f"image column defaulting to {image_column}")
     else:
         image_column = args.image_column
@@ -569,7 +580,7 @@ def make_train_dataset(args, tokenizer, accelerator):
             )
 
     if args.caption_column is None:
-        caption_column = column_names[1]
+        caption_column = column_names[2]   # text
         logger.info(f"caption column defaulting to {caption_column}")
     else:
         caption_column = args.caption_column
@@ -579,7 +590,7 @@ def make_train_dataset(args, tokenizer, accelerator):
             )
 
     if args.conditioning_image_column is None:
-        conditioning_image_column = column_names[2]
+        conditioning_image_column = column_names[1]   # conditioning_mel
         logger.info(f"conditioning image column defaulting to {caption_column}")
     else:
         conditioning_image_column = args.conditioning_image_column
@@ -610,6 +621,7 @@ def make_train_dataset(args, tokenizer, accelerator):
     image_transforms = transforms.Compose(
         [
             transforms.Resize(args.resolution, interpolation=transforms.InterpolationMode.BILINEAR),
+            transforms.CenterCrop(args.resolution),
             transforms.ToTensor(),
             transforms.Normalize([0.5], [0.5]),
         ]
@@ -617,17 +629,17 @@ def make_train_dataset(args, tokenizer, accelerator):
 
     conditioning_image_transforms = transforms.Compose(
         [
-            transforms.Resize(args.resolution, interpolation=transforms.InterpolationMode.BILINEAR),
             transforms.ToTensor(),
+            transforms.Resize((args.resolution, args.resolution), interpolation=transforms.InterpolationMode.BILINEAR),
         ]
     )
 
     def preprocess_train(examples):
-        images = [image.convert("RGB") for image in examples[image_column]]
+        images = [Image.open(os.path.join(vgg_img_path, image)).convert("RGB") for image in examples[image_column]]
         images = [image_transforms(image) for image in images]
 
-        conditioning_images = [image.convert("RGB") for image in examples[conditioning_image_column]]
-        conditioning_images = [conditioning_image_transforms(image) for image in conditioning_images]
+        conditioning_images = [np.load(os.path.join(vgg_mel_path, image)) for image in examples[conditioning_image_column]]
+        conditioning_images = [conditioning_image_transforms(image).repeat_interleave(3, dim=0) for image in conditioning_images]
 
         examples["pixel_values"] = images
         examples["conditioning_pixel_values"] = conditioning_images
@@ -637,9 +649,9 @@ def make_train_dataset(args, tokenizer, accelerator):
 
     with accelerator.main_process_first():
         if args.max_train_samples is not None:
-            dataset["train"] = dataset["train"].shuffle(seed=args.seed).select(range(args.max_train_samples))
+            dataset = dataset.shuffle(seed=args.seed).select(range(args.max_train_samples))
         # Set the training transforms
-        train_dataset = dataset["train"].with_transform(preprocess_train)
+        train_dataset = dataset.with_transform(preprocess_train)
 
     return train_dataset
 
@@ -1025,18 +1037,21 @@ def main(args):
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
 
-                    if args.validation_prompt is not None and global_step % args.validation_steps == 0:
-                        log_validation(
-                            vae,
-                            text_encoder,
-                            tokenizer,
-                            unet,
-                            controlnet,
-                            args,
-                            accelerator,
-                            weight_dtype,
-                            global_step,
-                        )
+                        controlnet = accelerator.unwrap_model(controlnet)
+                        controlnet.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{global_step}"))
+
+                    # if args.validation_prompt is not None and global_step % args.validation_steps == 0:
+                    #     log_validation(
+                    #         vae,
+                    #         text_encoder,
+                    #         tokenizer,
+                    #         unet,
+                    #         controlnet,
+                    #         args,
+                    #         accelerator,
+                    #         weight_dtype,
+                    #         global_step,
+                    #     )
 
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
             progress_bar.set_postfix(**logs)
