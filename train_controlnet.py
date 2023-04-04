@@ -1043,6 +1043,8 @@ def main(args):
                         controlnet = accelerator.unwrap_model(controlnet)
                         controlnet.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{global_step}"))
 
+                    accelerator.wait_for_everyone()
+
                     # if args.validation_prompt is not None and global_step % args.validation_steps == 0:
                     #     log_validation(
                     #         vae,
