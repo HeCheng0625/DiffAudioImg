@@ -14,4 +14,4 @@ accelerate launch train_controlnet.py \
  --caption_column="text" \
  --proportion_empty_prompts=0.5 \
  --tracker_project_name="train_controlnet" \
- --resume_from_checkpoint="/blob/v-yuancwang/DiffAudioImg/AudioControlNet/checkpoint-5000"
+ --resume_from_checkpoint="/blob/v-yuancwang/DiffAudioImg/AudioControlNet/checkpoint-10000"

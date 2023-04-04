@@ -688,14 +688,14 @@ def main(args):
 
     accelerator_project_config = ProjectConfiguration(total_limit=args.checkpoints_total_limit)
 
-    kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=5400))
+    # kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=5400))
     accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         mixed_precision=args.mixed_precision,
         log_with=args.report_to,
         logging_dir=logging_dir,
         project_config=accelerator_project_config,
-        kwargs_handlers=[kwargs]
+        # kwargs_handlers=[kwargs]
     )
 
     # Make one log on every process with the configuration for debugging.
@@ -1034,8 +1034,8 @@ def main(args):
                 progress_bar.update(1)
                 global_step += 1
 
-                if accelerator.is_main_process:
-                    if global_step % args.checkpointing_steps == 0:
+                if global_step % args.checkpointing_steps == 0:
+                    if accelerator.is_main_process:
                         save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
