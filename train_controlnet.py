@@ -29,7 +29,8 @@ import torch.utils.checkpoint
 import transformers
 from accelerate import Accelerator
 from accelerate.logging import get_logger
-from accelerate.utils import ProjectConfiguration, set_seed
+from datetime import timedelta
+from accelerate.utils import ProjectConfiguration, set_seed, InitProcessGroupKwargs
 from datasets import load_dataset
 from huggingface_hub import HfFolder, Repository, create_repo, whoami
 from packaging import version
@@ -687,12 +688,14 @@ def main(args):
 
     accelerator_project_config = ProjectConfiguration(total_limit=args.checkpoints_total_limit)
 
+    kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=5400))
     accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         mixed_precision=args.mixed_precision,
         log_with=args.report_to,
         logging_dir=logging_dir,
         project_config=accelerator_project_config,
+        kwargs_handlers=[kwargs]
     )
 
     # Make one log on every process with the configuration for debugging.
