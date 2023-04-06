@@ -1040,23 +1040,10 @@ def main(args):
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
 
-                        controlnet = accelerator.unwrap_model(controlnet)
-                        controlnet.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{global_step}"))
+                        controlnet_save = accelerator.unwrap_model(controlnet)
+                        controlnet_save.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{global_step}"))
 
                     accelerator.wait_for_everyone()
-
-                    # if args.validation_prompt is not None and global_step % args.validation_steps == 0:
-                    #     log_validation(
-                    #         vae,
-                    #         text_encoder,
-                    #         tokenizer,
-                    #         unet,
-                    #         controlnet,
-                    #         args,
-                    #         accelerator,
-                    #         weight_dtype,
-                    #         global_step,
-                    #     )
 
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
             progress_bar.set_postfix(**logs)
