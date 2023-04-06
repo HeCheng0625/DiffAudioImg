@@ -558,11 +558,12 @@ def make_train_dataset(args, tokenizer, accelerator):
     vgg_img_path = "/blob/v-yuancwang/DiffAudioImg/VGGSound/data/vggsound/img_spilt"
     vgg_mel_path = "/blob/v-yuancwang/DiffAudioImg/VGGSound/data/vggsound/mel"
 
-    dataset = load_dataset('json', data_files=["/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_0.json",
-                                            "/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_1.json",
-                                            "/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_2.json",
-                                            "/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_3.json",
-                                            "/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_4.json"])
+    # dataset = load_dataset('json', data_files=["/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_0.json",
+    #                                         "/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_1.json",
+    #                                         "/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_2.json",
+    #                                         "/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_3.json",
+    #                                         "/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_4.json"])
+    dataset = load_dataset('json', data_files=["/home/v-yuancwang/DiffAudioImg/metadata/vgg_10class.json"])
     dataset = dataset["train"]
 
     # Preprocessing the datasets.
