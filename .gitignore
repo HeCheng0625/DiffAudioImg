@@ -3,3 +3,5 @@ __pycache__
 ffmpeg-3.1
 */*.log
 *.log
+test_vae_mel
+test_vae_wav

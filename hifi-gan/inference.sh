@@ -1,4 +1,4 @@
-python /home/v-yuancwang/hifi-gan/inference_e2e.py \
---input_mels_dir="/blob/v-yuancwang/audio_editing_test/inpainting/100000/4.0/mel" \
---output_dir="/blob/v-yuancwang/audio_editing_test/inpainting/100000/4.0/wav" \
---checkpoint_file="/blob/v-yuancwang/hifigan_cp/g_00285000"
+/opt/conda/envs/control/bin/python /home/v-yuancwang/DiffAudioImg/hifi-gan/inference_e2e.py \
+--input_mels_dir="/home/v-yuancwang/DiffAudioImg/test_vae_mel" \
+--output_dir="/home/v-yuancwang/DiffAudioImg/test_vae_wav" \
+--checkpoint_file="/blob/v-yuancwang/hifigan_cp/g_01250000"
