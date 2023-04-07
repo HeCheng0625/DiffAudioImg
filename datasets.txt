@@ -1,0 +1,9 @@
+1. vggsound
+img_split/0,1,2,3,4
+wav
+mel
+
+2. ac_train
+img
+wav
+mel
