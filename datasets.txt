@@ -1,9 +1,28 @@
 1. vggsound
+/blob/v-yuancwang/DiffAudioImg/VGGSound/data/vggsound
 img_split/0,1,2,3,4
-wav
+wav 177K
 mel
+label
 
 2. ac_train
+/blob/v-yuancwang/DiffAudioImg/VGGSound/data/ac_train
 img
-wav
+wav 44K
 mel
+caption
+
+3. SoundBible
+caption
+
+4. FreeSound
+caption
+
+5. AudioSet_SL
+caption
+
+6. BBC_Sound_Effects
+caption
+
+7. AudioSet96
+label
