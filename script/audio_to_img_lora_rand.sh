@@ -1,5 +1,5 @@
 export MODEL_DIR="runwayml/stable-diffusion-v1-5"
-export OUTPUT_DIR="/blob/v-yuancwang/DiffAudioImg/AudioControlNet_lora"
+export OUTPUT_DIR="/blob/v-yuancwang/DiffAudioImg/AudioControlNet_lora_rand"
 
 accelerate launch train_codes/train_controlnet_lora_rand.py \
  --pretrained_model_name_or_path=$MODEL_DIR \
