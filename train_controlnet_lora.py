@@ -48,6 +48,8 @@ from diffusers import (
     UNet2DConditionModel,
     UniPCMultistepScheduler,
 )
+from diffusers.loaders import AttnProcsLayers
+from diffusers.models.attention_processor import LoRAAttnProcessor
 from diffusers.optimization import get_scheduler
 from diffusers.utils import check_min_version, is_wandb_available
 from diffusers.utils.import_utils import is_xformers_available
@@ -563,8 +565,7 @@ def make_train_dataset(args, tokenizer, accelerator):
     #                                         "/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_2.json",
     #                                         "/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_3.json",
     #                                         "/home/v-yuancwang/DiffAudioImg/metadata/vgg_train_4.json"])
-    # dataset = load_dataset('json', data_files=["/home/v-yuancwang/DiffAudioImg/metadata/vgg_10class.json"])
-    dataset = load_dataset('json', data_files=["/home/v-yuancwang/DiffAudioImg/metadata/vgg_2class.json"])
+    dataset = load_dataset('json', data_files=["/home/v-yuancwang/DiffAudioImg/metadata/vgg_10class.json"])
     dataset = dataset["train"]
 
     # Preprocessing the datasets.
@@ -606,9 +607,9 @@ def make_train_dataset(args, tokenizer, accelerator):
         captions = []
         for caption in examples[caption_column]:
             if random.random() < args.proportion_empty_prompts:
-                captions.append("v$g@g@s*o#u#n$d")   # Similar to DreamBrooth?
+                captions.append("")
             elif isinstance(caption, str):
-                captions.append("v$g@g@s*o#u#n$d"+" "+caption)
+                captions.append(caption)
             elif isinstance(caption, (list, np.ndarray)):
                 # take a random caption if there are multiple
                 captions.append(random.choice(caption) if is_train else caption[0])
@@ -767,40 +768,70 @@ def main(args):
         logger.info("Initializing controlnet weights from unet")
         controlnet = ControlNetModel.from_unet(unet)
 
-    # `accelerate` 0.16.0 will have better support for customized saving
-    if version.parse(accelerate.__version__) >= version.parse("0.16.0"):
-        # create custom saving & loading hooks so that `accelerator.save_state(...)` serializes in a nice format
-        def save_model_hook(models, weights, output_dir):
-            i = len(weights) - 1
+    # # `accelerate` 0.16.0 will have better support for customized saving
+    # if version.parse(accelerate.__version__) >= version.parse("0.16.0"):
+    #     # create custom saving & loading hooks so that `accelerator.save_state(...)` serializes in a nice format
+    #     def save_model_hook(models, weights, output_dir):
+    #         i = len(weights) - 1
 
-            while len(weights) > 0:
-                weights.pop()
-                model = models[i]
+    #         while len(weights) > 0:
+    #             weights.pop()
+    #             model = models[i]
 
-                sub_dir = "controlnet"
-                model.save_pretrained(os.path.join(output_dir, sub_dir))
+    #             sub_dir = "controlnet"
+    #             model.save_pretrained(os.path.join(output_dir, sub_dir))
 
-                i -= 1
+    #             i -= 1
 
-        def load_model_hook(models, input_dir):
-            while len(models) > 0:
-                # pop models so that they are not loaded again
-                model = models.pop()
+    #     def load_model_hook(models, input_dir):
+    #         while len(models) > 0:
+    #             # pop models so that they are not loaded again
+    #             model = models.pop()
 
-                # load diffusers style into model
-                load_model = ControlNetModel.from_pretrained(input_dir, subfolder="controlnet")
-                model.register_to_config(**load_model.config)
+    #             # load diffusers style into model
+    #             load_model = ControlNetModel.from_pretrained(input_dir, subfolder="controlnet")
+    #             model.register_to_config(**load_model.config)
 
-                model.load_state_dict(load_model.state_dict())
-                del load_model
+    #             model.load_state_dict(load_model.state_dict())
+    #             del load_model
 
-        accelerator.register_save_state_pre_hook(save_model_hook)
-        accelerator.register_load_state_pre_hook(load_model_hook)
+    #     accelerator.register_save_state_pre_hook(save_model_hook)
+    #     accelerator.register_load_state_pre_hook(load_model_hook)
 
     vae.requires_grad_(False)
     unet.requires_grad_(False)
     text_encoder.requires_grad_(False)
     controlnet.train()
+
+    # now we will add new LoRA weights to the attention layers
+    # It's important to realize here how many attention weights will be added and of which sizes
+    # The sizes of the attention layers consist only of two different variables:
+    # 1) - the "hidden_size", which is increased according to `unet.config.block_out_channels`.
+    # 2) - the "cross attention size", which is set to `unet.config.cross_attention_dim`.
+
+    # Let's first see how many attention processors we will have to set.
+    # For Stable Diffusion, it should be equal to:
+    # - down blocks (2x attention layers) * (2x transformer layers) * (3x down blocks) = 12
+    # - mid blocks (2x attention layers) * (1x transformer layers) * (1x mid blocks) = 2
+    # - up blocks (2x attention layers) * (3x transformer layers) * (3x down blocks) = 18
+    # => 32 layers
+
+    # Set correct lora layers
+    lora_attn_procs = {}
+    for name in unet.attn_processors.keys():
+        cross_attention_dim = None if name.endswith("attn1.processor") else unet.config.cross_attention_dim
+        if name.startswith("mid_block"):
+            hidden_size = unet.config.block_out_channels[-1]
+        elif name.startswith("up_blocks"):
+            block_id = int(name[len("up_blocks.")])
+            hidden_size = list(reversed(unet.config.block_out_channels))[block_id]
+        elif name.startswith("down_blocks"):
+            block_id = int(name[len("down_blocks.")])
+            hidden_size = unet.config.block_out_channels[block_id]
+
+        lora_attn_procs[name] = LoRAAttnProcessor(hidden_size=hidden_size, cross_attention_dim=cross_attention_dim)
+
+    unet.set_attn_processor(lora_attn_procs)
 
     if args.enable_xformers_memory_efficient_attention:
         if is_xformers_available():
@@ -815,6 +846,8 @@ def main(args):
             controlnet.enable_xformers_memory_efficient_attention()
         else:
             raise ValueError("xformers is not available. Make sure it is installed correctly")
+
+    lora_layers = AttnProcsLayers(unet.attn_processors)
 
     if args.gradient_checkpointing:
         controlnet.enable_gradient_checkpointing()
@@ -855,8 +888,17 @@ def main(args):
 
     # Optimizer creation
     params_to_optimize = controlnet.parameters()
+
     optimizer = optimizer_class(
         params_to_optimize,
+        lr=args.learning_rate,
+        betas=(args.adam_beta1, args.adam_beta2),
+        weight_decay=args.adam_weight_decay,
+        eps=args.adam_epsilon,
+    )
+
+    optimizer_lora = optimizer_class(
+        lora_layers.parameters(),
         lr=args.learning_rate,
         betas=(args.adam_beta1, args.adam_beta2),
         weight_decay=args.adam_weight_decay,
@@ -888,10 +930,18 @@ def main(args):
         num_cycles=args.lr_num_cycles,
         power=args.lr_power,
     )
+    lr_scheduler_lora = get_scheduler(
+        args.lr_scheduler,
+        optimizer=optimizer_lora,
+        num_warmup_steps=args.lr_warmup_steps * args.gradient_accumulation_steps,
+        num_training_steps=args.max_train_steps * args.gradient_accumulation_steps,
+        num_cycles=args.lr_num_cycles,
+        power=args.lr_power,
+    )
 
     # Prepare everything with our `accelerator`.
-    controlnet, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
-        controlnet, optimizer, train_dataloader, lr_scheduler
+    controlnet, lora_layers, optimizer, optimizer_lora, train_dataloader, lr_scheduler, lr_scheduler_lora = accelerator.prepare(
+        controlnet, lora_layers, optimizer, optimizer_lora, train_dataloader, lr_scheduler, lr_scheduler_lora
     )
 
     # For mixed precision training we cast the text_encoder and vae weights to half-precision
@@ -975,61 +1025,71 @@ def main(args):
     )
 
     for epoch in range(first_epoch, args.num_train_epochs):
+        unet.train()
         for step, batch in enumerate(train_dataloader):
+
             with accelerator.accumulate(controlnet):
-                # Convert images to latent space
-                latents = vae.encode(batch["pixel_values"].to(dtype=weight_dtype)).latent_dist.sample()
-                latents = latents * vae.config.scaling_factor
+                with accelerator.accumulate(unet):
+                    # Convert images to latent space
+                    latents = vae.encode(batch["pixel_values"].to(dtype=weight_dtype)).latent_dist.sample()
+                    latents = latents * vae.config.scaling_factor
 
-                # Sample noise that we'll add to the latents
-                noise = torch.randn_like(latents)
-                bsz = latents.shape[0]
-                # Sample a random timestep for each image
-                timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (bsz,), device=latents.device)
-                timesteps = timesteps.long()
+                    # Sample noise that we'll add to the latents
+                    noise = torch.randn_like(latents)
+                    bsz = latents.shape[0]
+                    # Sample a random timestep for each image
+                    timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (bsz,), device=latents.device)
+                    timesteps = timesteps.long()
 
-                # Add noise to the latents according to the noise magnitude at each timestep
-                # (this is the forward diffusion process)
-                noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
+                    # Add noise to the latents according to the noise magnitude at each timestep
+                    # (this is the forward diffusion process)
+                    noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
 
-                # Get the text embedding for conditioning
-                encoder_hidden_states = text_encoder(batch["input_ids"])[0]
+                    # Get the text embedding for conditioning
+                    encoder_hidden_states = text_encoder(batch["input_ids"])[0]
 
-                controlnet_image = batch["conditioning_pixel_values"].to(dtype=weight_dtype)
+                    controlnet_image = batch["conditioning_pixel_values"].to(dtype=weight_dtype)
 
-                down_block_res_samples, mid_block_res_sample = controlnet(
-                    noisy_latents,
-                    timesteps,
-                    encoder_hidden_states=encoder_hidden_states,
-                    controlnet_cond=controlnet_image,
-                    return_dict=False,
-                )
+                    down_block_res_samples, mid_block_res_sample = controlnet(
+                        noisy_latents,
+                        timesteps,
+                        encoder_hidden_states=encoder_hidden_states,
+                        controlnet_cond=controlnet_image,
+                        return_dict=False,
+                    )
 
-                # Predict the noise residual
-                model_pred = unet(
-                    noisy_latents,
-                    timesteps,
-                    encoder_hidden_states=encoder_hidden_states,
-                    down_block_additional_residuals=down_block_res_samples,
-                    mid_block_additional_residual=mid_block_res_sample,
-                ).sample
+                    # Predict the noise residual
+                    model_pred = unet(
+                        noisy_latents,
+                        timesteps,
+                        encoder_hidden_states=encoder_hidden_states,
+                        down_block_additional_residuals=down_block_res_samples,
+                        mid_block_additional_residual=mid_block_res_sample,
+                    ).sample
 
-                # Get the target for loss depending on the prediction type
-                if noise_scheduler.config.prediction_type == "epsilon":
-                    target = noise
-                elif noise_scheduler.config.prediction_type == "v_prediction":
-                    target = noise_scheduler.get_velocity(latents, noise, timesteps)
-                else:
-                    raise ValueError(f"Unknown prediction type {noise_scheduler.config.prediction_type}")
-                loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
+                    # Get the target for loss depending on the prediction type
+                    if noise_scheduler.config.prediction_type == "epsilon":
+                        target = noise
+                    elif noise_scheduler.config.prediction_type == "v_prediction":
+                        target = noise_scheduler.get_velocity(latents, noise, timesteps)
+                    else:
+                        raise ValueError(f"Unknown prediction type {noise_scheduler.config.prediction_type}")
+                    loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
 
-                accelerator.backward(loss)
-                if accelerator.sync_gradients:
-                    params_to_clip = controlnet.parameters()
-                    accelerator.clip_grad_norm_(params_to_clip, args.max_grad_norm)
-                optimizer.step()
-                lr_scheduler.step()
-                optimizer.zero_grad(set_to_none=args.set_grads_to_none)
+                    accelerator.backward(loss)
+                    if accelerator.sync_gradients:
+                        params_to_clip = controlnet.parameters()
+                        accelerator.clip_grad_norm_(params_to_clip, args.max_grad_norm)
+                    optimizer.step()
+                    lr_scheduler.step()
+                    optimizer.zero_grad(set_to_none=args.set_grads_to_none)
+
+                    if accelerator.sync_gradients:
+                        params_to_clip = lora_layers.parameters()
+                        accelerator.clip_grad_norm_(params_to_clip, args.max_grad_norm)
+                    optimizer_lora.step()
+                    lr_scheduler_lora.step()
+                    optimizer_lora.zero_grad()
 
             # Checks if the accelerator has performed an optimization step behind the scenes
             if accelerator.sync_gradients:
@@ -1044,6 +1104,8 @@ def main(args):
 
                         controlnet_save = accelerator.unwrap_model(controlnet)
                         controlnet_save.save_pretrained(os.path.join(args.output_dir, f"checkpoint-{global_step}"))
+                        unet_save = accelerator.unwrap_model(unet)
+                        unet_save.save_attn_procs(os.path.join(args.output_dir, f"checkpoint-{global_step}"))
 
                     accelerator.wait_for_everyone()
 
@@ -1059,6 +1121,8 @@ def main(args):
     if accelerator.is_main_process:
         controlnet = accelerator.unwrap_model(controlnet)
         controlnet.save_pretrained(args.output_dir)
+        unet_save = accelerator.unwrap_model(unet)
+        unet_save.save_attn_procs(args.output_dir)
 
         if args.push_to_hub:
             repo.push_to_hub(commit_message="End of training", blocking=False, auto_lfs_prune=True)
