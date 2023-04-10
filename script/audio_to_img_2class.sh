@@ -1,7 +1,7 @@
 export MODEL_DIR="runwayml/stable-diffusion-v1-5"
 export OUTPUT_DIR="/blob/v-yuancwang/DiffAudioImg/AudioControlNet_2class"
 
-accelerate launch train_controlnet_10class.py \
+accelerate launch train/train_controlnet_10class.py \
  --pretrained_model_name_or_path=$MODEL_DIR \
  --output_dir=$OUTPUT_DIR \
  --resolution=512 \
