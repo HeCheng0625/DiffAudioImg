@@ -607,8 +607,10 @@ def make_train_dataset(args, tokenizer, accelerator):
         for caption in examples[caption_column]:
             if random.random() < args.proportion_empty_prompts:
                 captions.append("v$g@g@s*o#u#n$d")   # Similar to DreamBrooth?
+                # captions.append("v#g&g*soundv#g#g@dnuos")
             elif isinstance(caption, str):
                 captions.append("v$g@g@s*o#u#n$d"+" "+caption)
+                # captions.append(caption)
             elif isinstance(caption, (list, np.ndarray)):
                 # take a random caption if there are multiple
                 captions.append(random.choice(caption) if is_train else caption[0])
